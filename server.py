@@ -7,7 +7,7 @@ PORT = 10532
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((HOST, PORT))
-server.listen(5)
+server.listen()
 
 clients = []
 nicknames = []
@@ -33,7 +33,7 @@ def handle(client):
                 if nicknames[clients.index(client)] == "Admin":
                     name_to_ban = msg.decode("utf-8")[4:]
                     kick_user(name_to_ban)
-                    with open ("bans.txt", "a") as f:
+                    with open("bans.txt", "a") as f:
                         f.write(name_to_ban + "\n")
                     print(f"{name_to_ban} has been banned!")
                 else:
@@ -59,7 +59,7 @@ def receive():
             client.send("NICK".encode("utf-8"))
             nickname = client.recv(1024).decode("utf-8")
 
-            with open ("bans.txt", "r") as f:
+            with open("bans.txt", "r") as f:
                 bans = f.readlines()
 
             if nickname+'\n' in bans:
