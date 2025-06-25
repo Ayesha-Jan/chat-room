@@ -1,153 +1,191 @@
-import sys
 import socket
-import threading
+import sys
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QLabel, QMessageBox
+    QApplication, QWidget, QVBoxLayout, QTextEdit, QLineEdit,
+    QPushButton, QLabel, QMessageBox, QHBoxLayout
 )
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QColor, QTextCursor
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtGui import QFont, QTextCursor
 
 HOST = '127.0.0.1'
 PORT = 10346
 
 
-class ChatClient(QWidget):
+class ReceiveThread(QThread):
+    new_message = pyqtSignal(str)
+    connection_closed = pyqtSignal()
+
+    def __init__(self, client):
+        super().__init__()
+        self.client = client
+        self.running = True
+
+    def run(self):
+        while self.running:
+            try:
+                data = self.client.recv(1024)
+                if not data:
+                    self.connection_closed.emit()
+                    break
+                msg = data.decode('utf-8')
+                self.new_message.emit(msg)
+                if msg == "SHUTDOWN":
+                    self.running = False
+            except:
+                self.connection_closed.emit()
+                break
+
+    def stop(self):
+        self.running = False
+        self.quit()
+        self.wait()
+
+
+class Client(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Pink Chatroom")
-        self.setStyleSheet("background-color: pink; font-family: Arial;")
-        self.resize(500, 500)
-
+        self.setWindowTitle("Chatroom")
+        self.setStyleSheet("background-color: #ffd3e0;")
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.stop_event = threading.Event()
+        self.receive_thread = None
+        self._setup_ui()
 
+    def _setup_ui(self):
         self.layout = QVBoxLayout()
-        self.chat_history = QTextEdit()
-        self.chat_history.setReadOnly(True)
-        self.chat_history.setStyleSheet("background-color: #fff0f5; color: black;")
 
-        self.input_box = QLineEdit()
-        self.input_box.setPlaceholderText("Type your message here... Press Enter to send")
-        self.input_box.setStyleSheet("background-color: white; padding: 5px;")
-        self.input_box.returnPressed.connect(self.send_message)
+        # --- Top: login entries ---
+        form_layout = QHBoxLayout()
+        self.nick_input = QLineEdit()
+        self.nick_input.setPlaceholderText("Nickname")
+        self.pass_input = QLineEdit()
+        self.pass_input.setPlaceholderText("Password (admin only)")
+        self.pass_input.setEchoMode(QLineEdit.Password)
+        self.connect_button = QPushButton("Connect")
+        self.connect_button.clicked.connect(self.start_connection)
+        form_layout.addWidget(self.nick_input)
+        form_layout.addWidget(self.pass_input)
+        form_layout.addWidget(self.connect_button)
 
-        self.send_button = QPushButton("Send")
-        self.send_button.clicked.connect(self.send_message)
-        self.send_button.setStyleSheet("background-color: #ff69b4; color: white;")
+        # --- Middle: chat display ---
+        self.chat_display = QTextEdit()
+        self.chat_display.setReadOnly(True)
+        self.chat_display.setFont(QFont("Arial", 12))
+        self.chat_display.setStyleSheet("background-color: white; color: black;")
 
-        self.admin_label = QLabel()
-        self.admin_label.setStyleSheet("color: darkred; font-weight: bold;")
+        # --- Bottom: message entry and tip ---
+        self.msg_input = QLineEdit()
+        self.msg_input.setPlaceholderText("Type message and press Enter (or 'q' to quit)")
+        self.msg_input.returnPressed.connect(self.send_message)
+        self.msg_input.setStyleSheet("background-color: white; color: black;")
 
-        self.layout.addWidget(self.chat_history)
-        self.layout.addWidget(self.admin_label)
-        self.layout.addWidget(self.input_box)
-        self.layout.addWidget(self.send_button)
+        self.tip_label = QLabel("Type 'q' to quit. Admin commands: /kick NAME, /ban NAME")
+        self.tip_label.setFont(QFont("Arial", 10))
+        self.tip_label.setStyleSheet("font-style: italic;")
 
+        self.layout.addLayout(form_layout)
+        self.layout.addWidget(self.chat_display)
+        self.layout.addWidget(self.msg_input)
+        self.layout.addWidget(self.tip_label)
         self.setLayout(self.layout)
 
-        self.nickname = ""
-        self.password = ""
-
-        self.connect_to_server()
-
-    def connect_to_server(self):
-        self.nickname, ok = self.get_input("Enter your nickname:")
-        if not ok:
-            sys.exit()
-
-        if self.nickname.lower() == "admin":
-            self.password, ok = self.get_input("Enter admin password:")
-            if not ok:
-                sys.exit()
-            self.admin_label.setText("Admin Commands: /kick <user>, /ban <user> | Type 'q' to quit")
-        else:
-            self.admin_label.setText("Type 'q' to quit")
+    def start_connection(self):
+        nick = self.nick_input.text().strip().capitalize()
+        pwd = self.pass_input.text()
+        if not nick:
+            QMessageBox.warning(self, "Error", "Nickname required")
+            return
+        if nick.lower() == "admin" and not pwd:
+            QMessageBox.warning(self, "Error", "Password required for admin")
+            return
 
         try:
             self.client.connect((HOST, PORT))
+            self.client.send(nick.encode('utf-8'))
+            if nick.lower() == "admin":
+                self.client.send(pwd.encode('utf-8'))
+            # Wait server feedback:
+            resp = self.client.recv(1024).decode('utf-8')
+            if resp == "REFUSE":
+                self.chat_display.append("<i>[!] Wrong admin password.</i>")
+                self.client.close()
+                return
+            if resp == "BAN":
+                self.chat_display.append("<i>[!] You are banned.</i>")
+                self.client.close()
+                return
+            self.nickname = nick
         except Exception as e:
-            self.show_error(f"Failed to connect: {e}")
-            sys.exit()
+            self.chat_display.append(f"<i>[!] Connection error: {e}</i>")
+            return
 
-        threading.Thread(target=self.receive).start()
+        self.chat_display.append(f"<i>You have joined the chat as {self.nickname}.</i>")
+        self.connect_button.setEnabled(False)
+        self.nick_input.setEnabled(False)
+        self.pass_input.setEnabled(False)
 
-    def receive(self):
-        while not self.stop_event.is_set():
-            try:
-                message = self.client.recv(1024).decode('utf-8')
-                if message == 'NICK':
-                    self.client.send(self.nickname.encode('utf-8'))
-                elif message == 'PASS':
-                    self.client.send(self.password.encode('utf-8'))
-                elif message == 'REFUSE':
-                    self.show_error("Admin password incorrect.")
-                    self.stop_event.set()
-                elif message == 'BAN':
-                    self.show_error("You are banned from this server.")
-                    self.stop_event.set()
-                elif message == 'SHUTDOWN':
-                    self.append_chat("Server has shut down.")
-                    self.stop_event.set()
-                else:
-                    self.append_chat(message)
-            except:
-                self.stop_event.set()
-                break
+        self.receive_thread = ReceiveThread(self.client)
+        self.receive_thread.new_message.connect(self.handle_received)
+        self.receive_thread.connection_closed.connect(self.handle_disconnected)
+        self.receive_thread.start()
+
+    def handle_received(self, msg):
+        # Filter and format
+        if msg.startswith("NICK"):
+            return
+        if "has joined the chat!" in msg:
+            if self.nickname in msg:
+                self.chat_display.append(f"<i>You have joined the chat.</i>")
+            else:
+                self.chat_display.append(msg)
+        elif msg.startswith("Command was refused"):
+            self.chat_display.append(f"<i>{msg}</i>")
+        else:
+            self.chat_display.append(msg)
+        self.chat_display.moveCursor(QTextCursor.End)
+
+    def handle_disconnected(self):
+        self.chat_display.append("<i>[!] Disconnected from server.</i>")
+        if self.receive_thread:
+            self.receive_thread.stop()
+        self.connect_button.setEnabled(True)
+        self.nick_input.setEnabled(True)
+        self.pass_input.setEnabled(True)
 
     def send_message(self):
-        if self.stop_event.is_set():
-            return
-        message = self.input_box.text().strip()
-        if not message:
+        if self.connect_button.isEnabled():
+            return  # Not yet connected
+
+        text = self.msg_input.text().strip()
+        if not text:
             return
 
-        if message.lower() == 'q':
-            self.client.send('q'.encode('utf-8'))
-            self.append_chat("You have left the chat.")
+        if text.lower() == 'q':
+            self.client.send(b'q')
+            self.chat_display.append("<i>You left the chat.</i>")
             self.client.close()
-            self.stop_event.set()
+            self.receive_thread.stop()
             self.close()
             return
 
-        if message.startswith('/'):
-            if self.nickname == "Admin":
-                if message.startswith('/kick'):
-                    self.client.send(f"KICK {message[6:].strip()}".encode('utf-8'))
-                elif message.startswith('/ban'):
-                    self.client.send(f"BAN {message[5:].strip()}".encode('utf-8'))
+        if text.startswith('/'):
+            if self.nickname.lower() == "admin":
+                if text.startswith('/kick'):
+                    self.client.send(f"KICK {text[6:].strip()}".encode('utf-8'))
+                elif text.startswith('/ban'):
+                    self.client.send(f"BAN {text[5:].strip()}".encode('utf-8'))
                 else:
-                    self.append_chat("Unknown command.")
+                    self.chat_display.append("<i>Unknown admin command.</i>")
             else:
-                self.append_chat("Only Admin can use commands.")
+                self.chat_display.append("<i>Only Admin can use commands.</i>")
         else:
-            self.client.send(f"{self.nickname}: {message}".encode('utf-8'))
+            self.client.send(f"{self.nickname}: {text}".encode('utf-8'))
 
-        self.input_box.clear()
-
-    def append_chat(self, message):
-        self.chat_history.append(message)
-        self.chat_history.moveCursor(QTextCursor.End)
-
-    def get_input(self, prompt):
-        text, ok = QInputDialog.getText(self, "Chat Login", prompt)
-        return text.strip().capitalize(), ok
-
-    def show_error(self, message):
-        QMessageBox.critical(self, "Error", message)
-
-    def closeEvent(self, event):
-        self.stop_event.set()
-        try:
-            self.client.close()
-        except:
-            pass
-        event.accept()
+        self.msg_input.clear()
 
 
-if __name__ == "__main__":
-    from PyQt5.QtWidgets import QInputDialog
-
+if __name__ == '__main__':
     app = QApplication(sys.argv)
-    window = ChatClient()
-    window.show()
+    win = Client()
+    win.resize(600, 600)
+    win.show()
     sys.exit(app.exec_())
