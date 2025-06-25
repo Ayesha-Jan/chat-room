@@ -13,10 +13,12 @@ clients = []
 nicknames = []
 
 
-def broadcast(message):
+def broadcast(message, exclude=None):
     if isinstance(message, str):
         message = message.encode('utf-8')
     for client in clients[:]:
+        if client == exclude:
+            continue
         try:
             client.send(message)
         except:
@@ -32,16 +34,22 @@ def broadcast(message):
 
 
 def kick_user(name):
-    if name in nicknames:
-        name_index = nicknames.index(name)
+    lower_nicks = [n.lower() for n in nicknames]
+    if name.lower() in lower_nicks:
+        name_index = lower_nicks.index(name.lower())
         client_to_kick = clients[name_index]
         client_to_kick.send("You have been kicked by the Admin!".encode("utf-8"))
         clients.remove(client_to_kick)
+        nicknames.pop(name_index)
         client_to_kick.close()
-        nicknames.remove(name)
         broadcast(f"{name} was kicked by Admin!".encode('utf-8'))
+        print(f"{name} was kicked by Admin!".encode('utf-8'))
     else:
-        broadcast(f"{name} is not in the chat!".encode('utf-8'))
+        # Notify admin only, do not kick them
+        admin_index = lower_nicks.index("admin")
+        admin_client = clients[admin_index]
+        admin_client.send(f"{name} is not in the chat!".encode('utf-8'))
+        return  # Prevent accidental kick
 
 
 def handle(client):
@@ -52,8 +60,8 @@ def handle(client):
     except ValueError:
         return
 
-    while True:
-        try:
+    try:
+        while True:
             msg = client.recv(1024)
             if not msg:
                 break
@@ -61,38 +69,38 @@ def handle(client):
 
             if message.lower() == 'q':
                 break
-
             elif message.startswith("KICK"):
-                if nicknames[clients.index(client)].lower() == "admin":
+                if nickname.lower() == "admin":
                     name = message[5:].strip()
                     kick_user(name)
                 else:
                     client.send("Command was refused!".encode("utf-8"))
             elif message.startswith("BAN"):
-                if nicknames[clients.index(client)].lower() == "admin":
+                if nickname.lower() == "admin":
                     name = message[4:].strip()
                     kick_user(name)
                     with open("bans.txt", "a") as f:
                         f.write(name.lower() + "\n")
                     broadcast(f"{name} has been banned from the chat!")
-                    print(f"{name} has been banned!")
                 else:
                     client.send("Command was refused!".encode("utf-8"))
             else:
                 broadcast(message)
-        except:
-            if client in clients:
-                try:
-                    index = clients.index(client)
-                    nickname = nicknames[index]
-                    broadcast(f"{nickname} has left the chat.")
-                    clients.pop(index)
-                    nicknames.pop(index)
-                    print(f"{nickname} has been removed.")
-                    client.close()
-                    break
-                except ValueError:
-                    pass
+    except:
+        pass
+    finally:
+        if client in clients:
+            try:
+                index = clients.index(client)
+                nickname = nicknames[index]
+                clients.pop(index)
+                nicknames.pop(index)
+                broadcast(f"{nickname} has left the chat.")
+                print(f"{nickname} has been removed.")
+            except ValueError:
+                pass
+        client.close()
+
 
 
 def receive():
@@ -130,8 +138,8 @@ def receive():
         nicknames.append(nickname)
         client.send("OK".encode("utf-8"))
 
-        broadcast(f"{nickname} has joined the chat!\n")
-        client.send(f"You have joined the chat as {nickname}.".encode('utf-8'))
+        print(f"{nickname} connected from {address}")
+        broadcast(f"{nickname} has joined the chat!\n", exclude=client)
 
         thread = threading.Thread(target=handle, args=(client,))
         thread.start()

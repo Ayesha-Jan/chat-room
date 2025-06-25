@@ -98,6 +98,9 @@ class Client(QWidget):
             QMessageBox.warning(self, "Error", "Nickname required")
             return
 
+        if nick.lower() != "admin" and pwd:
+            QMessageBox.warning(self, "Error", "Only Admin should enter a password.")
+            return
         # Create a new socket every attempt
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -109,17 +112,27 @@ class Client(QWidget):
 
             recv = self.client.recv(1024).decode('utf-8')
             if recv == "PASS":
+                if nick.lower() != "admin":
+                    QMessageBox.warning(self, "Error", "Only Admin should enter a password!")
+                    self.client.close()
+                    return
+                if not pwd:
+                    QMessageBox.warning(self, "Error", "Admin password required.")
+                    self.client.close()
+                    return
                 while True:
                     self.client.send(pwd.encode('utf-8'))
                     resp = self.client.recv(1024).decode('utf-8')
                     if resp == "REFUSE":
                         pwd, ok = QInputDialog.getText(self, "Wrong Password", "Try admin password again:",
                                                        echo=QLineEdit.Password)
-                        if not ok:
+                        if not ok or not pwd:
                             self.client.close()
                             return
+                        continue
                     else:
                         break
+
             elif recv == "REFUSE":
                 self.chat_display.append("<i>[!] Wrong admin password.</i>")
                 self.client.close()
@@ -153,6 +166,11 @@ class Client(QWidget):
             if name == self.nickname:
                 return
 
+        if "You have been kicked by the Admin!" in msg or "You are banned." in msg:
+            QMessageBox.information(self, "Disconnected", msg)
+            self.close()
+            return
+
         if msg.startswith("Command was refused") or msg.startswith("[!]"):
             self.chat_display.append(f"<i>{msg}</i>")
         else:
@@ -181,6 +199,7 @@ class Client(QWidget):
             self.chat_display.append("<i>You have left the chat.</i>")
             if self.receive_thread:
                 self.receive_thread.stop()
+            self.close()
             self.connect_button.setEnabled(True)
             self.nick_input.setEnabled(True)
             self.pass_input.setEnabled(True)
