@@ -63,17 +63,15 @@ def handle(client):
                 break
 
             elif message.startswith("KICK"):
-                if nicknames[clients.index(client)] == "Admin":
+                if nicknames[clients.index(client)].lower() == "admin":
                     name = message[5:].strip()
                     kick_user(name)
                 else:
                     client.send("Command was refused!".encode("utf-8"))
-
             elif message.startswith("BAN"):
-                if nicknames[clients.index(client)] == "Admin":
+                if nicknames[clients.index(client)].lower() == "admin":
                     name = message[4:].strip()
                     kick_user(name)
-
                     with open("bans.txt", "a") as f:
                         f.write(name.lower() + "\n")
                     broadcast(f"{name} has been banned from the chat!")
@@ -105,9 +103,10 @@ def receive():
             break
 
         client.send("NICK".encode("utf-8"))
-        nickname = client.recv(1024).decode("utf-8").strip().capitalize()
+        nickname = client.recv(1024).decode("utf-8").strip()
+        nickname = nickname[0].upper() + nickname[1:].lower()
 
-        if nickname in nicknames:
+        if nickname.lower() in [n.lower() for n in nicknames]:
             client.send("This user is already in the chat room.".encode("utf-8"))
             client.close()
             continue
@@ -119,7 +118,7 @@ def receive():
             client.close()
             continue
 
-        if nickname == "Admin":
+        if nickname.lower() == "admin":
             client.send("PASS".encode("utf-8"))
             password = client.recv(1024).decode("utf-8")
             if password != "adminpass":
@@ -129,15 +128,13 @@ def receive():
 
         clients.append(client)
         nicknames.append(nickname)
+        client.send("OK".encode("utf-8"))
 
-        print(f"Connected with {address}!")
-        print(f"Nickname of the client is {nickname}.")
         broadcast(f"{nickname} has joined the chat!\n")
+        client.send(f"You have joined the chat as {nickname}.".encode('utf-8'))
 
         thread = threading.Thread(target=handle, args=(client,))
         thread.start()
-
-        client.send("You have joined the chat!".encode("utf-8"))
 
 
 def server_shutdown():
