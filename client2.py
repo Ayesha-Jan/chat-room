@@ -28,32 +28,27 @@ def receive():
                 client.close()
                 stop_event.set()
                 break
-            if message == "NICK":
+            elif message == "NICK":
                 client.send(nickname.encode('utf-8'))
                 next_message = client.recv(1024).decode('utf-8')
                 if next_message == "PASS":
                     client.send(password.encode('utf-8'))
-                    if client.recv(1024).decode('utf-8') == "REFUSE":
+                    final = client.recv(1024).decode('utf-8')
+                    if final == "REFUSE":
                         print("Connection refused! Wrong password.")
                         client.close()
                         stop_event.set()
-                        break
+                    else:
+                        print(final)
                 elif next_message == "BAN":
-                    print("Connection refused because you are banned! ")
+                    print("Connection refused because you are banned!")
                     client.close()
                     stop_event.set()
-                    break
-            elif "kicked by the Admin" in message:
-                print(message)
-                stop_event.set()
-                client.close()
-                break
+                else:
+                    print(next_message)
             else:
                 print(message)
-        except OSError:
-            break
         except:
-            print("An error occurred!")
             client.close()
             stop_event.set()
             break
@@ -74,9 +69,9 @@ def write():
             if message.startswith('/'):
                 if nickname == "Admin":
                     if message.startswith('/kick'):
-                        client.send(f"KICK {message[6:]}".encode('utf-8'))
+                        client.send(f"KICK {message[6:].strip()}".encode('utf-8'))
                     elif message.startswith('/ban'):
-                        client.send(f"BAN {message[5:]}".encode('utf-8'))
+                        client.send(f"BAN {message[5:].strip()}".encode('utf-8'))
                     else:
                         print("Unknown admin command.")
                 else:
@@ -84,13 +79,9 @@ def write():
             else:
                 client.send(f"{nickname}: {message}".encode('utf-8'))
         except:
-            print("Cannot send message! Exiting...")
             stop_event.set()
             break
 
 
-receive_thread = threading.Thread(target=receive)
-receive_thread.start()
-
-write_thread = threading.Thread(target=write)
-write_thread.start()
+threading.Thread(target=receive).start()
+threading.Thread(target=write).start()
