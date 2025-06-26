@@ -34,22 +34,26 @@ def broadcast(message, exclude=None):
 
 
 def kick_user(name):
-    lower_nicks = [n.lower() for n in nicknames]
-    if name.lower() in lower_nicks:
-        name_index = lower_nicks.index(name.lower())
-        client_to_kick = clients[name_index]
-        client_to_kick.send("You have been kicked by the Admin!".encode("utf-8"))
-        clients.remove(client_to_kick)
-        nicknames.pop(name_index)
-        client_to_kick.close()
-        broadcast(f"{name} was kicked by Admin!".encode('utf-8'))
-        print(f"{name} was kicked by Admin!".encode('utf-8'))
-    else:
-        # Notify admin only, do not kick them
-        admin_index = lower_nicks.index("admin")
-        admin_client = clients[admin_index]
-        admin_client.send(f"{name} is not in the chat!".encode('utf-8'))
-        return  # Prevent accidental kick
+    try:
+        lower_nicks = [n.lower() for n in nicknames]
+        if name.lower() in lower_nicks:
+            name_index = lower_nicks.index(name.lower())
+            client_to_kick = clients[name_index]
+            client_to_kick.send("You have been kicked by the Admin!".encode("utf-8"))
+            clients.remove(client_to_kick)
+            nicknames.pop(name_index)
+            client_to_kick.close()
+            name = name.capitalize()
+            broadcast(f"{name} was kicked by Admin!".encode('utf-8'))
+            print(f"{name} was kicked by Admin!".encode('utf-8'))
+        else:
+            # Notify admin only, do not kick them
+            admin_index = lower_nicks.index("admin")
+            admin_client = clients[admin_index]
+            admin_client.send(f"{name} is not in the chat!".encode('utf-8'))
+            return  # Prevent accidental kick
+    except:
+        print("Error in kick user")
 
 
 def handle(client):

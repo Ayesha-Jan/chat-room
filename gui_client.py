@@ -124,14 +124,18 @@ class Client(QWidget):
                     self.client.send(pwd.encode('utf-8'))
                     resp = self.client.recv(1024).decode('utf-8')
                     if resp == "REFUSE":
+                        self.client.close()
                         pwd, ok = QInputDialog.getText(self, "Wrong Password", "Try admin password again:",
                                                        echo=QLineEdit.Password)
                         if not ok or not pwd:
-                            self.client.close()
                             return
+                        self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        self.client.connect((HOST, PORT))
+                        self.client.recv(1024)  # Receive "NICK"
+                        self.client.send(nick.encode('utf-8'))
+                        self.client.recv(1024)  # Receive "PASS"
                         continue
-                    else:
-                        break
+                    break
 
             elif recv == "REFUSE":
                 self.chat_display.append("<i>[!] Wrong admin password.</i>")
@@ -171,12 +175,18 @@ class Client(QWidget):
             self.close()
             return
 
-        if msg.startswith("Command was refused") or msg.startswith("[!]"):
+        # Italicize system messages (join/leave/kick/ban/errors)
+        if (
+                msg.startswith("Command was refused")
+                or msg.startswith("[!]")
+                or "has joined the chat" in msg
+                or "has left the chat" in msg
+                or "was kicked by Admin!" in msg
+                or "has been banned" in msg
+        ):
             self.chat_display.append(f"<i>{msg}</i>")
         else:
             self.chat_display.append(msg)
-
-        self.chat_display.moveCursor(QTextCursor.End)
 
     def handle_disconnected(self):
         self.chat_display.append("<i>[!] Disconnected from server.</i>")
