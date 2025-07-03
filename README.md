@@ -21,8 +21,8 @@ A simple Python-based chatroom application with a server and a PyQt5 client inte
 
 ## Files
 
-- server.py — The chat server implementation.
-- client.py — The PyQt5 client application.
+- chat_server.py — The chat server implementation.
+- chat_client.py — The PyQt5 client application.
 - bans.txt — Stores banned usernames (created automatically).
 
 ---
@@ -53,7 +53,7 @@ A simple Python-based chatroom application with a server and a PyQt5 client inte
 - Enter your Nickname in the input field.
 - If you want to log in as Admin, enter the password adminpass.
 - Use the chat interface to send and receive messages.
-- To quit the chat, type q and press Enter or click Send.
+- To quit the chat, type `q` and press Enter or click Send.
 
 ---
 
