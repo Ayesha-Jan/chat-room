@@ -54,6 +54,39 @@ def kick_user(name):
         print("Error in kick user")
 
 
+def unban_user(name):
+    try:
+        lower_nicks = [n.lower() for n in nicknames]
+        with open("bans.txt", "r") as f:
+            bans = [line.strip().lower() for line in f.readlines()]
+        if name.lower() not in bans:
+            # Notify admin user not banned
+            if "admin" in lower_nicks:
+                admin_index = lower_nicks.index("admin")
+                admin_client = clients[admin_index]
+                admin_client.send(f"{name} is not banned.".encode('utf-8'))
+            return
+
+        # Remove from bans.txt
+        bans = [ban for ban in bans if ban != name.lower()]
+        with open("bans.txt", "w") as f:
+            for ban in bans:
+                f.write(ban + "\n")
+
+        # Notify everyone
+        broadcast(f"{name} has been unbanned by Admin!")
+
+        # Notify admin
+        if "admin" in lower_nicks:
+            admin_index = lower_nicks.index("admin")
+            admin_client = clients[admin_index]
+            admin_client.send(f"{name} was successfully unbanned.".encode('utf-8'))
+
+        print(f"{name} was unbanned by Admin!")
+    except Exception as e:
+        print(f"Error in unban user: {e}")
+
+
 def handle(client):
     nickname = None
     try:
@@ -84,6 +117,12 @@ def handle(client):
                     with open("bans.txt", "a") as f:
                         f.write(name.lower() + "\n")
                     broadcast(f"{name} has been banned from the chat!")
+                else:
+                    client.send("Command was refused!".encode("utf-8"))
+            elif message.startswith("UNBAN"):
+                if nickname.lower() == "admin":
+                    name = message[6:].strip()
+                    unban_user(name)
                 else:
                     client.send("Command was refused!".encode("utf-8"))
             else:

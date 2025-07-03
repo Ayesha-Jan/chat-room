@@ -45,7 +45,7 @@ class Client(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Chatroom")
-        self.setStyleSheet("background-color: #ffd3e0;")
+        self.setStyleSheet("background-color: #FDDBE6;")
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.receive_thread = None
         self.nickname = None
@@ -81,7 +81,7 @@ class Client(QWidget):
         msg_input_layout.addWidget(self.msg_input)
         msg_input_layout.addWidget(self.send_button)
 
-        self.tip_label = QLabel("Admin commands: /kick NAME, /ban NAME")
+        self.tip_label = QLabel("Admin commands: /kick NAME, /ban NAME, /unban NAME")
         self.tip_label.setFont(QFont("Arial", 10))
 
         self.layout.addLayout(form_layout)
@@ -220,6 +220,8 @@ class Client(QWidget):
                     self.client.send(f"KICK {text[6:].strip()}".encode('utf-8'))
                 elif text.startswith('/ban'):
                     self.client.send(f"BAN {text[5:].strip()}".encode('utf-8'))
+                elif text.startswith('/unban'):
+                    self.client.send(f"UNBAN {text[7:].strip()}".encode('utf-8'))
                 else:
                     self.chat_display.append("<i>Unknown admin command.</i>")
             else:
