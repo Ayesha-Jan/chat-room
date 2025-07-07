@@ -51,7 +51,7 @@ A simple Python-based chatroom application with a server and a PyQt5 client inte
 
 - Run the client script: `python chat_client.py`
 - Enter your Nickname in the input field.
-- If you want to log in as Admin, enter the password adminpass.
+- If you want to log in as Admin, enter the password: `adminpass`.
 - Use the chat interface to send and receive messages.
 - To quit the chat, type `q` and press Enter or click Send.
 
