@@ -112,10 +112,6 @@ class Client(QWidget):
 
             recv = self.client.recv(1024).decode('utf-8')
             if recv == "PASS":
-                if nick.lower() != "admin":
-                    QMessageBox.warning(self, "Error", "Only Admin should enter a password!")
-                    self.client.close()
-                    return
                 if not pwd:
                     QMessageBox.warning(self, "Error", "Admin password required.")
                     self.client.close()
@@ -137,10 +133,6 @@ class Client(QWidget):
                         continue
                     break
 
-            elif recv == "REFUSE":
-                self.chat_display.append("<i>[!] Wrong admin password.</i>")
-                self.client.close()
-                return
             elif recv == "BAN":
                 self.chat_display.append("<i>[!] You are banned.</i>")
                 self.client.close()
@@ -165,12 +157,7 @@ class Client(QWidget):
         if msg.startswith("NICK"):
             return
 
-        if msg.endswith("has joined the chat!"):
-            name = msg.replace(" has joined the chat!", "").strip()
-            if name == self.nickname:
-                return
-
-        if "You have been kicked by the Admin!" in msg or "You are banned." in msg:
+        if "You have been kicked by the Admin!" in msg or "You are banned" in msg:
             QMessageBox.information(self, "Disconnected", msg)
             self.close()
             return
@@ -182,6 +169,7 @@ class Client(QWidget):
                 or "has left the chat" in msg
                 or "was kicked by Admin!" in msg
                 or "has been banned" in msg
+                or "has been unbanned" in msg
         ):
             self.chat_display.append(f"<i>{msg}</i>")
         else:
