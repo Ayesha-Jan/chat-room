@@ -59,6 +59,6 @@ A simple Python-based chatroom application with a server and a PyQt5 client inte
 
 ## Author
 
-Developed by: Ayesha A. Jan
-Email: Ayesha.Jan@stud.srh-campus-berlin.de
+Developed by: Ayesha A. Jan  
+Email: Ayesha.Jan@stud.srh-campus-berlin.de  
 🎓 BST Computer Networks Project – 2025
